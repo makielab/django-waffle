@@ -101,6 +101,10 @@ def flag_is_active(request, flag_name):
             return True
 
     if flag.percent > 0:
+        if getattr(settings, 'WAFFLE_PERCENT_ON_USERID', False) and user.is_authenticated():
+            if hasattr(user, 'id') and isinstance(user.id, (int, long)):
+                return ((user.id % 1000) / 10.0) <= flag.percent
+
         if not hasattr(request, 'waffles'):
             request.waffles = {}
         elif flag_name in request.waffles:

@@ -3,6 +3,7 @@ import random
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser, Group, User
 from django.db import connection
+from django.test.utils import override_settings
 
 import mock
 from nose.tools import eq_
@@ -195,12 +196,34 @@ class WaffleTests(TestCase):
         eq_('off', response.content)
         assert not 'dwf_myflag' in response.cookies
 
-    def test_percent(self):
+    def test_percent_not_on_userid(self):
         """If you have no cookie, you get a cookie!"""
         Flag.objects.create(name='myflag', percent='50.0')
         request = get()
         response = process_request(request, views.flag_in_view)
         assert 'dwf_myflag' in response.cookies
+
+    @override_settings(WAFFLE_PERCENT_ON_USERID=True)
+    def test_percent_active_on_userid(self):
+        """If you have no cookie, you get a cookie!"""
+        Flag.objects.create(name='myflag', percent='50.0')
+        request = get()
+        request.user = User(id=123, username='foo')
+        assert request.user.is_authenticated()
+        assert waffle.flag_is_active(request, 'myflag')
+        response = process_request(request, views.flag_in_view)
+        assert 'dwf_myflag' not in response.cookies
+
+    @override_settings(WAFFLE_PERCENT_ON_USERID=True)
+    def test_percent_inactive_on_userid(self):
+        """If you have no cookie, you get a cookie!"""
+        Flag.objects.create(name='myflag', percent='50.0')
+        request = get()
+        request.user = User(id=501, username='foo')
+        assert request.user.is_authenticated()
+        assert not waffle.flag_is_active(request, 'myflag')
+        response = process_request(request, views.flag_in_view)
+        assert 'dwf_myflag' not in response.cookies
 
     @mock.patch.object(random, 'uniform')
     def test_reroll(self, uniform):
