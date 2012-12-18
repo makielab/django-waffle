@@ -101,25 +101,30 @@ def flag_is_active(request, flag_name):
             return True
 
     if flag.percent > 0:
-        if getattr(settings, 'WAFFLE_PERCENT_ON_USERID', False) and user.is_authenticated():
-            if hasattr(user, 'id') and isinstance(user.id, (int, long)):
-                return ((user.id % 1000) / 10.0) <= flag.percent
+        waffle_percent_handler = getattr(settings, 'WAFFLE_FLAG_PERCENT_HANDLER', None)
+        if waffle_percent_handler and callable(waffle_percent_handler):
+            return waffle_percent_handler(request, flag.name, flag.percent)
 
-        if not hasattr(request, 'waffles'):
-            request.waffles = {}
-        elif flag_name in request.waffles:
-            return request.waffles[flag_name][0]
+        else:
+            if getattr(settings, 'WAFFLE_PERCENT_ON_USERID', False) and user.is_authenticated():
+                if hasattr(user, 'id') and isinstance(user.id, (int, long)):
+                    return ((user.id % 1000) / 10.0) <= flag.percent
 
-        cookie = COOKIE_NAME % flag_name
-        if cookie in request.COOKIES:
-            flag_active = (request.COOKIES[cookie] == 'True')
-            set_flag(request, flag_name, flag_active, flag.rollout)
-            return flag_active
+            if not hasattr(request, 'waffles'):
+                request.waffles = {}
+            elif flag_name in request.waffles:
+                return request.waffles[flag_name][0]
 
-        if Decimal(str(random.uniform(0, 100))) <= flag.percent:
-            set_flag(request, flag_name, True, flag.rollout)
-            return True
-        set_flag(request, flag_name, False, flag.rollout)
+            cookie = COOKIE_NAME % flag_name
+            if cookie in request.COOKIES:
+                flag_active = (request.COOKIES[cookie] == 'True')
+                set_flag(request, flag_name, flag_active, flag.rollout)
+                return flag_active
+
+            if Decimal(str(random.uniform(0, 100))) <= flag.percent:
+                set_flag(request, flag_name, True, flag.rollout)
+                return True
+            set_flag(request, flag_name, False, flag.rollout)
 
     return False
 

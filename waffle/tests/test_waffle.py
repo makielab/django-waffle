@@ -1,4 +1,5 @@
 import random
+import decimal
 
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser, Group, User
@@ -224,6 +225,15 @@ class WaffleTests(TestCase):
         assert not waffle.flag_is_active(request, 'myflag')
         response = process_request(request, views.flag_in_view)
         assert 'dwf_myflag' not in response.cookies
+
+    def test_percent_handler(self):
+        handler = lambda x, y: y.percent == decimal.Decimal('0.1')
+        with override_settings(WAFFLE_FLAG_PERCENT_HANDLER=handler):
+            Flag.objects.create(name='myflag', percent='0.1')
+            request = get()
+            assert waffle.flag_is_active(request, 'myflag')
+            response = process_request(request, views.flag_in_view)
+            assert 'dwf_myflag' not in response.cookies
 
     @mock.patch.object(random, 'uniform')
     def test_reroll(self, uniform):
