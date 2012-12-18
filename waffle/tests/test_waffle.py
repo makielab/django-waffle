@@ -14,6 +14,7 @@ from test_app import views
 import waffle
 from waffle.middleware import WaffleMiddleware
 from waffle.models import Flag, Sample, Switch
+from waffle.signals import flag_evaluated, sample_evaluated, switch_evaluated
 
 
 def get(**kw):
@@ -227,7 +228,7 @@ class WaffleTests(TestCase):
         assert 'dwf_myflag' not in response.cookies
 
     def test_percent_handler(self):
-        handler = lambda x, y: y.percent == decimal.Decimal('0.1')
+        handler = lambda x, y, z: z == decimal.Decimal('0.1')
         with override_settings(WAFFLE_FLAG_PERCENT_HANDLER=handler):
             Flag.objects.create(name='myflag', percent='0.1')
             request = get()
@@ -310,6 +311,32 @@ class WaffleTests(TestCase):
         response = self.client.get('/flag_in_view?dwft_myflag=1')
         eq_('on', response.content)
 
+    def test_active_signal(self):
+        flag = Flag.objects.create(name='myflag', everyone=True)
+
+        def handler(sender, **kwargs):
+            self.evaluated = kwargs['active']
+        try:
+            flag_evaluated.connect(handler)
+            assert waffle.flag_is_active(get(), flag.name)
+            assert self.evaluated
+        finally:
+            flag_evaluated.disconnect(handler)
+
+    def test_inactive_signal(self):
+        flag = Flag.objects.create(name='myflag', everyone=False)
+        self.evaluated = None
+
+        def handler(sender, **kwargs):
+            self.evaluated = kwargs['active']
+        try:
+            flag_evaluated.connect(handler)
+            assert not waffle.flag_is_active(get(), flag.name)
+            assert self.evaluated is not None
+            assert not self.evaluated
+        finally:
+            flag_evaluated.disconnect(handler)
+
 
 class SwitchTests(TestCase):
     def test_switch_active(self):
@@ -356,6 +383,32 @@ class SwitchTests(TestCase):
         assert not waffle.switch_is_active('foo')
         eq_(queries, len(connection.queries), 'We should only make one query.')
 
+    def test_active_signal(self):
+        switch = Switch.objects.create(name='myswitch', active=True)
+
+        def handler(sender, **kwargs):
+            self.evaluated = kwargs['active']
+        try:
+            switch_evaluated.connect(handler)
+            assert waffle.switch_is_active(switch.name)
+            assert self.evaluated
+        finally:
+            switch_evaluated.disconnect(handler)
+
+    def test_inactive_signal(self):
+        switch = Switch.objects.create(name='myswitch', active=False)
+        self.evaluated = None
+
+        def handler(sender, **kwargs):
+            self.evaluated = kwargs['active']
+        try:
+            switch_evaluated.connect(handler)
+            assert not waffle.switch_is_active(switch.name)
+            assert self.evaluated is not None
+            assert not self.evaluated
+        finally:
+            switch_evaluated.disconnect(handler)
+
 
 class SampleTests(TestCase):
     def test_sample_100(self):
@@ -372,3 +425,29 @@ class SampleTests(TestCase):
     @mock.patch.object(settings._wrapped, 'WAFFLE_SAMPLE_DEFAULT', True)
     def test_undefined_default(self):
         assert waffle.sample_is_active('foo')
+
+    def test_active_signal(self):
+        sample = Sample.objects.create(name='sample', percent='100.0')
+
+        def handler(sender, **kwargs):
+            self.evaluated = kwargs['active']
+        try:
+            sample_evaluated.connect(handler)
+            assert waffle.sample_is_active(sample.name)
+            assert self.evaluated
+        finally:
+            sample_evaluated.disconnect(handler)
+
+    def test_inactive_signal(self):
+        sample = Sample.objects.create(name='sample', percent='0.0')
+        self.evaluated = None
+
+        def handler(sender, **kwargs):
+            self.evaluated = kwargs['active']
+        try:
+            sample_evaluated.connect(handler)
+            assert not waffle.sample_is_active(sample.name)
+            assert self.evaluated is not None
+            assert not self.evaluated
+        finally:
+            sample_evaluated.disconnect(handler)

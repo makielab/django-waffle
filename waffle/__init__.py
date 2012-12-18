@@ -1,4 +1,5 @@
 from decimal import Decimal
+from functools import wraps
 import random
 
 from django.conf import settings
@@ -6,6 +7,7 @@ from django.core.cache import cache
 from django.db.models.signals import post_save, post_delete, m2m_changed
 
 from waffle.models import Flag, Sample, Switch
+from waffle.signals import flag_evaluated, sample_evaluated, switch_evaluated
 
 
 VERSION = (0, 8, 1, 2)
@@ -32,6 +34,19 @@ class DoesNotExist(object):
         return getattr(settings, 'WAFFLE_SWITCH_DEFAULT', False)
 
 
+def send_signal(signal, argnames=None, resultname=None):
+    def _my_decorator(f):
+        @wraps(f)
+        def _wrapper(*args, **kwargs):
+            result = f(*args, **kwargs)
+            sigargs = dict(zip(argnames, args))
+            sigargs[resultname] = result
+            signal.send_robust(sender=f, **sigargs)
+            return result
+        return _wrapper
+    return _my_decorator
+
+
 def set_flag(request, flag_name, active=True, session_only=False):
     """Set a flag value on a request object."""
     if not hasattr(request, 'waffles'):
@@ -39,6 +54,7 @@ def set_flag(request, flag_name, active=True, session_only=False):
     request.waffles[flag_name] = [active, session_only]
 
 
+@send_signal(flag_evaluated, argnames=['request', 'name'], resultname='active')
 def flag_is_active(request, flag_name):
     flag = cache.get(FLAG_CACHE_KEY.format(n=flag_name))
     if flag is None:
@@ -105,30 +121,30 @@ def flag_is_active(request, flag_name):
         if waffle_percent_handler and callable(waffle_percent_handler):
             return waffle_percent_handler(request, flag.name, flag.percent)
 
-        else:
-            if getattr(settings, 'WAFFLE_PERCENT_ON_USERID', False) and user.is_authenticated():
-                if hasattr(user, 'id') and isinstance(user.id, (int, long)):
-                    return ((user.id % 1000) / 10.0) <= flag.percent
+        if getattr(settings, 'WAFFLE_PERCENT_ON_USERID', False) and user.is_authenticated():
+            if hasattr(user, 'id') and isinstance(user.id, (int, long)):
+                return ((user.id % 1000) / 10.0) <= flag.percent
 
-            if not hasattr(request, 'waffles'):
-                request.waffles = {}
-            elif flag_name in request.waffles:
-                return request.waffles[flag_name][0]
+        if not hasattr(request, 'waffles'):
+            request.waffles = {}
+        elif flag_name in request.waffles:
+            return request.waffles[flag_name][0]
 
-            cookie = COOKIE_NAME % flag_name
-            if cookie in request.COOKIES:
-                flag_active = (request.COOKIES[cookie] == 'True')
-                set_flag(request, flag_name, flag_active, flag.rollout)
-                return flag_active
+        cookie = COOKIE_NAME % flag_name
+        if cookie in request.COOKIES:
+            flag_active = (request.COOKIES[cookie] == 'True')
+            set_flag(request, flag_name, flag_active, flag.rollout)
+            return flag_active
 
-            if Decimal(str(random.uniform(0, 100))) <= flag.percent:
-                set_flag(request, flag_name, True, flag.rollout)
-                return True
-            set_flag(request, flag_name, False, flag.rollout)
+        if Decimal(str(random.uniform(0, 100))) <= flag.percent:
+            set_flag(request, flag_name, True, flag.rollout)
+            return True
+        set_flag(request, flag_name, False, flag.rollout)
 
     return False
 
 
+@send_signal(switch_evaluated, argnames=['name'], resultname='active')
 def switch_is_active(switch_name):
     switch = cache.get(SWITCH_CACHE_KEY.format(n=switch_name))
     if switch is None:
@@ -142,6 +158,7 @@ def switch_is_active(switch_name):
     return switch.active
 
 
+@send_signal(sample_evaluated, argnames=['name'], resultname='active')
 def sample_is_active(sample_name):
     sample = cache.get(SAMPLE_CACHE_KEY.format(n=sample_name))
     if sample is None:
