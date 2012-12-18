@@ -228,7 +228,8 @@ class WaffleTests(TestCase):
         assert 'dwf_myflag' not in response.cookies
 
     def test_percent_handler(self):
-        handler = lambda x, y, z: z == decimal.Decimal('0.1')
+        handler = lambda a, b, c, d: c == decimal.Decimal('0.1')
+        waffle._FLAG_PERCENT_HANDLER = None
         with override_settings(WAFFLE_FLAG_PERCENT_HANDLER=handler):
             Flag.objects.create(name='myflag', percent='0.1')
             request = get()

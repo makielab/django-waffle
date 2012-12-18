@@ -5,6 +5,8 @@ import random
 from django.conf import settings
 from django.core.cache import cache
 from django.db.models.signals import post_save, post_delete, m2m_changed
+from django.core.exceptions import ImproperlyConfigured
+from django.utils.importlib import import_module
 
 from waffle.models import Flag, Sample, Switch
 from waffle.signals import flag_evaluated, sample_evaluated, switch_evaluated
@@ -25,6 +27,39 @@ SWITCH_CACHE_KEY = CACHE_PREFIX + u'switch:{n}'
 SWITCHES_ALL_CACHE_KEY = CACHE_PREFIX + u'switches:all'
 COOKIE_NAME = getattr(settings, 'WAFFLE_COOKIE', 'dwf_%s')
 TEST_COOKIE_NAME = getattr(settings, 'WAFFLE_TESTING_COOKIE', 'dwft_%s')
+_FLAG_PERCENT_HANDLER = None
+
+
+def _get_flag_percent_handler_func():
+    global _FLAG_PERCENT_HANDLER
+    if _FLAG_PERCENT_HANDLER:
+        return _FLAG_PERCENT_HANDLER
+
+    handler = getattr(settings, 'WAFFLE_FLAG_PERCENT_HANDLER', None)
+    if not handler:
+        _FLAG_PERCENT_HANDLER = lambda *args: None
+        return _FLAG_PERCENT_HANDLER
+
+    if callable(handler):
+        return handler
+
+    import_path = handler
+    try:
+        dot = import_path.rindex('.')
+    except ValueError:
+        raise ImproperlyConfigured("%s isn't a module path." % import_path)
+
+    module, funcname = import_path[:dot], import_path[dot + 1:]
+    try:
+        mod = import_module(module)
+    except ImportError, e:
+        raise ImproperlyConfigured('Error importing module %s: "%s"' % (module, e))
+    try:
+        func = getattr(mod, funcname)
+    except AttributeError:
+        raise ImproperlyConfigured('Module "%s" does not define a "%s" function.' % (module, funcname))
+    _FLAG_PERCENT_HANDLER = func
+    return func
 
 
 class DoesNotExist(object):
@@ -117,9 +152,10 @@ def flag_is_active(request, flag_name):
             return True
 
     if flag.percent > 0:
-        waffle_percent_handler = getattr(settings, 'WAFFLE_FLAG_PERCENT_HANDLER', None)
-        if waffle_percent_handler and callable(waffle_percent_handler):
-            return waffle_percent_handler(request, flag.name, flag.percent)
+        handler = _get_flag_percent_handler_func()
+        result = handler(request, flag.name, flag.percent, flag.rollout)
+        if result is not None:
+            return result
 
         if getattr(settings, 'WAFFLE_PERCENT_ON_USERID', False) and user.is_authenticated():
             if hasattr(user, 'id') and isinstance(user.id, (int, long)):
