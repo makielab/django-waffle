@@ -338,6 +338,26 @@ class WaffleTests(TestCase):
         finally:
             flag_evaluated.disconnect(handler)
 
+    def test_get_all(self):
+        Flag.objects.create(name='myflag')
+        assert len(waffle.get_all_flags()) == 1
+
+    def test_get_all_add(self):
+        Flag.objects.create(name='myflag')
+        assert len(waffle.get_all_flags()) == 1
+        Flag.objects.create(name='myotherflag')
+        assert len(waffle.get_all_flags()) == 2
+
+    @mock.patch('waffle.cache')
+    def test_get_all_cache(self, mock_cache):
+        mock_cache.get.return_value = None
+        expected_calls = [mock.call.get(waffle.FLAGS_ALL_CACHE_KEY),
+                          mock.call.add(waffle.FLAGS_ALL_CACHE_KEY, mock.ANY)]
+        Flag.objects.create(name='myflag')
+        Flag.objects.create(name='myotherflag')
+        assert len(waffle.get_all_flags()) == 2
+        mock_cache.assert_has_calls(expected_calls)
+
 
 class SwitchTests(TestCase):
     def test_switch_active(self):
@@ -410,6 +430,26 @@ class SwitchTests(TestCase):
         finally:
             switch_evaluated.disconnect(handler)
 
+    def test_get_all(self):
+        Switch.objects.create(name='myswitch')
+        assert len(waffle.get_all_switches()) == 1
+
+    def test_get_all_add(self):
+        Switch.objects.create(name='myswitch')
+        assert len(waffle.get_all_switches()) == 1
+        Switch.objects.create(name='myotherswitch')
+        assert len(waffle.get_all_switches()) == 2
+
+    @mock.patch('waffle.cache')
+    def test_get_all_cache(self, mock_cache):
+        mock_cache.get.return_value = None
+        expected_calls = [mock.call.get(waffle.SWITCHES_ALL_CACHE_KEY),
+                          mock.call.add(waffle.SWITCHES_ALL_CACHE_KEY, mock.ANY)]
+        Switch.objects.create(name='myswitch')
+        Switch.objects.create(name='myotherswitch')
+        assert len(waffle.get_all_switches()) == 2
+        mock_cache.assert_has_calls(expected_calls)
+
 
 class SampleTests(TestCase):
     def test_sample_100(self):
@@ -452,3 +492,23 @@ class SampleTests(TestCase):
             assert not self.evaluated
         finally:
             sample_evaluated.disconnect(handler)
+
+    def test_get_all(self):
+        Sample.objects.create(name='mysample', percent='100.0')
+        assert len(waffle.get_all_samples()) == 1
+
+    def test_get_all_add(self):
+        Sample.objects.create(name='mysample', percent='100.0')
+        assert len(waffle.get_all_samples()) == 1
+        Sample.objects.create(name='myothersample', percent='100.0')
+        assert len(waffle.get_all_samples()) == 2
+
+    @mock.patch('waffle.cache')
+    def test_get_all_cache(self, mock_cache):
+        mock_cache.get.return_value = None
+        expected_calls = [mock.call.get(waffle.SAMPLES_ALL_CACHE_KEY),
+                          mock.call.add(waffle.SAMPLES_ALL_CACHE_KEY, mock.ANY)]
+        Sample.objects.create(name='mysample', percent='100.0')
+        Sample.objects.create(name='myothersample', percent='100.0')
+        assert len(waffle.get_all_samples()) == 2
+        mock_cache.assert_has_calls(expected_calls)

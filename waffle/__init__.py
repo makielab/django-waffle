@@ -12,7 +12,7 @@ from waffle.models import Flag, Sample, Switch
 from waffle.signals import flag_evaluated, sample_evaluated, switch_evaluated
 
 
-VERSION = (0, 8, 1, 3)
+VERSION = (0, 8, 1, 4)
 __version__ = '.'.join(map(str, VERSION))
 
 
@@ -80,6 +80,30 @@ def send_signal(signal, argnames=None, resultname=None):
             return result
         return _wrapper
     return _my_decorator
+
+
+def get_all_flags():
+    flags = cache.get(FLAGS_ALL_CACHE_KEY)
+    if not flags:
+        flags = Flag.objects.values_list('name', flat=True)
+        cache.add(FLAGS_ALL_CACHE_KEY, flags)
+    return flags
+
+
+def get_all_switches():
+    switches = cache.get(SWITCHES_ALL_CACHE_KEY)
+    if not switches:
+        switches = Switch.objects.values_list('name', 'active')
+        cache.add(SWITCHES_ALL_CACHE_KEY, switches)
+    return switches
+
+
+def get_all_samples():
+    samples = cache.get(SAMPLES_ALL_CACHE_KEY)
+    if not samples:
+        samples = Sample.objects.values_list('name', flat=True)
+        cache.add(SAMPLES_ALL_CACHE_KEY, samples)
+    return samples
 
 
 def set_flag(request, flag_name, active=True, session_only=False):
