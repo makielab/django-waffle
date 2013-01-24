@@ -82,7 +82,7 @@ def send_signal(signal, argnames=None, resultname=None):
     return _my_decorator
 
 
-def get_all_flags():
+def get_all_flag_names():
     flags = cache.get(FLAGS_ALL_CACHE_KEY)
     if not flags:
         flags = Flag.objects.values_list('name', flat=True)
@@ -90,7 +90,7 @@ def get_all_flags():
     return flags
 
 
-def get_all_switches():
+def get_all_switch_tuples():
     switches = cache.get(SWITCHES_ALL_CACHE_KEY)
     if not switches:
         switches = Switch.objects.values_list('name', 'active')
@@ -98,7 +98,7 @@ def get_all_switches():
     return switches
 
 
-def get_all_samples():
+def get_all_sample_names():
     samples = cache.get(SAMPLES_ALL_CACHE_KEY)
     if not samples:
         samples = Sample.objects.values_list('name', flat=True)
