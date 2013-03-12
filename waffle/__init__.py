@@ -12,7 +12,7 @@ from waffle.models import Flag, Sample, Switch
 from waffle.signals import flag_evaluated, sample_evaluated, switch_evaluated
 
 
-VERSION = (0, 8, 1, 5)
+VERSION = (0, 8, 1, 6)
 __version__ = '.'.join(map(str, VERSION))
 
 
