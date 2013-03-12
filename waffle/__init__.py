@@ -84,7 +84,7 @@ def send_signal(signal, argnames=None, resultname=None):
 
 def get_all_flag_names():
     flags = cache.get(FLAGS_ALL_CACHE_KEY)
-    if not flags:
+    if flags is None:
         flags = Flag.objects.values_list('name', flat=True)
         cache.add(FLAGS_ALL_CACHE_KEY, flags)
     return flags
@@ -92,7 +92,7 @@ def get_all_flag_names():
 
 def get_all_switch_tuples():
     switches = cache.get(SWITCHES_ALL_CACHE_KEY)
-    if not switches:
+    if switches is None:
         switches = Switch.objects.values_list('name', 'active')
         cache.add(SWITCHES_ALL_CACHE_KEY, switches)
     return switches
@@ -100,7 +100,7 @@ def get_all_switch_tuples():
 
 def get_all_sample_names():
     samples = cache.get(SAMPLES_ALL_CACHE_KEY)
-    if not samples:
+    if samples is None:
         samples = Sample.objects.values_list('name', flat=True)
         cache.add(SAMPLES_ALL_CACHE_KEY, samples)
     return samples
